@@ -1,0 +1,14 @@
+# large or licence-restricted: do not commit
+features/
+torch_home/
+hf_home/
+logs/
+brain/
+*.h5
+*.npy
+*.npz
+*.nii
+*.nii.gz
+__pycache__/
+*.out
+*.tar.gz

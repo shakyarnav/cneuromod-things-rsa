@@ -1,0 +1,104 @@
+#!/usr/bin/env python
+"""Generate an expanded Stimulus Clutter Grid (e.g., 4 categories x 4 columns)."""
+import os
+import json
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+
+ANN_PATH = "/scratch/arnav.shakya/cneuromod-things/THINGS/glmsingle/task-things_imgAnnotations.json"
+OUT_FIG = "/scratch/arnav.shakya/rsa_work/figures"
+os.makedirs(OUT_FIG, exist_ok=True)
+
+def find_image_path(img_name):
+    for root, dirs, files in os.walk("/scratch/arnav.shakya/cneuromod-things/"):
+        match = [f for f in files if f.startswith(img_name)]
+        if match:
+            return os.path.join(root, match[0])
+    return None
+
+def main():
+    if not os.path.exists(ANN_PATH):
+        print(f"Annotation file not found at {ANN_PATH}")
+        return
+
+    with open(ANN_PATH) as f:
+        ann_data = json.load(f)
+
+    categories = {}
+    for img_name, meta in ann_data.items():
+        cat = meta.get("image_category")
+        if not cat:
+            continue
+        if cat not in categories:
+            categories[cat] = {"low": [], "high": []}
+            
+        is_lone = meta.get("manual_lone_object", 0) == 1
+        is_rich = meta.get("manual_rich_background", 0) == 1 or meta.get("manual_scene", 0) == 1
+        
+        if is_lone:
+            categories[cat]["low"].append(img_name)
+        elif is_rich:
+            categories[cat]["high"].append(img_name)
+
+    # Filter categories having at least 2 low and 2 high clutter images
+    valid_cats = [cat for cat, d in categories.items() if len(d["low"]) >= 2 and len(d["high"]) >= 2]
+    print(f"Total valid categories available: {len(valid_cats)}")
+
+    # Select 4 distinct, diverse categories for a rich presentation slide
+    # (e.g., mixing animals, vehicles, and everyday objects if present)
+    target_cats = ["dog", "car", "chair", "bird"]
+    selected_cats = [c for c in target_cats if c in valid_cats]
+    
+    # If any target wasn't found, fill up to 4 from valid_cats
+    for c in valid_cats:
+        if len(selected_cats) >= 4:
+            break
+        if c not in selected_cats:
+            selected_cats.append(c)
+
+    print(f"Selected categories for expanded grid: {selected_cats}")
+
+    n_rows = len(selected_cats)
+    fig, axes = plt.subplots(nrows=n_rows, ncols=4, figsize=(10, n_rows * 2.2))
+    axes = np.atleast_2d(axes)
+
+    for row_idx, cat in enumerate(selected_cats):
+        low_imgs = categories[cat]["low"][:2]
+        high_imgs = categories[cat]["high"][:2]
+        col_images = [(img, "Low Clutter") for img in low_imgs] + [(img, "High Clutter") for img in high_imgs]
+        
+        for col_idx, (img_name, clutter_type) in enumerate(col_images):
+            ax = axes[row_idx, col_idx]
+            found_path = find_image_path(img_name)
+            
+            if found_path and os.path.exists(found_path):
+                img_obj = Image.open(found_path).convert("RGB")
+                ax.imshow(img_obj)
+            else:
+                ax.text(0.5, 0.5, f"{img_name}", ha="center", va="center", fontsize=8)
+                ax.set_facecolor("#e9ecef")
+
+            ax.set_xticks([])
+            ax.set_yticks([])
+            
+            # Column headers on the top row
+            if row_idx == 0:
+                header = "Low Clutter Ex. 1" if col_idx == 0 else ("Low Clutter Ex. 2" if col_idx == 1 else ("High Clutter Ex. 1" if col_idx == 2 else "High Clutter Ex. 2"))
+                ax.set_title(header, fontsize=10, fontweight="bold")
+                
+        # Row labels on the left-most column
+        axes[row_idx, 0].set_ylabel(f"{cat.upper()}", fontsize=10, fontweight="bold", rotation=0, labelpad=45, va="center")
+
+    fig.suptitle("Expanded Stimulus Clutter Comparison Grid (Low vs. High Clutter)", fontsize=13, fontweight="bold", y=0.99)
+    plt.tight_layout()
+    
+    out_pdf = f"{OUT_FIG}/fig1_expanded_stimulus_grid.pdf"
+    out_png = f"{OUT_FIG}/fig1_expanded_stimulus_grid.png"
+    fig.savefig(out_pdf)
+    fig.savefig(out_png)
+    print(f"Successfully generated expanded grid and saved to {out_pdf}")
+    plt.close(fig)
+
+if __name__ == "__main__":
+    main()
