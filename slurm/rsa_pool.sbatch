@@ -6,5 +6,5 @@
 #SBATCH --time=03:00:00
 #SBATCH --output=/scratch/arnav.shakya/rsa_work/logs/%x_%j.out
 export OMP_NUM_THREADS=4
-cd /scratch/arnav.shakya/rsa_work
+cd "${SLURM_SUBMIT_DIR:-$PWD}"
 /scratch/arnav.shakya/conda/envs/rsa/bin/python rsa_pool.py sub-01 sub-02 sub-03 sub-06
